@@ -46,6 +46,8 @@ Network Trash Folder
 Temporary Items
 .apdisk
 
+TcfTransactionLog.csv
+
 # AVR Files
 # =========================
 *.bin
