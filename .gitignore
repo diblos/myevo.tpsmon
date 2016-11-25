@@ -45,3 +45,17 @@ $RECYCLE.BIN/
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# AVR Files
+# =========================
+*.bin
+*.eep
+*.elf
+*.hex
+*.lls
+*.map
+Makefile
+_config.ini
+*.d
+*.o
+*.mk
