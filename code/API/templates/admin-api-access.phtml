@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en" ng-app="myApp">
+    <head>
+        <meta charset="utf-8"/>
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <title>TPS Admin Monitor v1: API Access</title>
+        <link href='//fonts.googleapis.com/css?family=Lato:300' rel='stylesheet' type='text/css'>
+        <style>
+            body {
+                margin: 50px 0 0 0;
+                padding: 0;
+                width: 100%;
+                font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+                text-align: center;
+                color: #aaa;
+                font-size: 18px;
+            }
+
+            h1 {
+                color: #719e40;
+                letter-spacing: -3px;
+                font-family: 'Lato', sans-serif;
+                font-size: 100px;
+                font-weight: 200;
+                margin-bottom: 0;
+            }
+        </style>
+<script src="http://ajax.googleapis.com/ajax/libs/angularjs/1.3.3/angular.js"></script>
+<!-- Latest compiled and minified CSS -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+
+<!-- Optional theme -->
+<link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap-theme.min.css" integrity="sha384-rHyoN1iRsVXV4nD0JutlnGaslCJuC7uwjduW9SVrLvRYooPp2bWYgmgJQIXwl/Sp" crossorigin="anonymous">
+
+
+        
+    </head>
+    <body ng-controller="AccessListCtrl">
+        <!-- ============================================================================================ -->
+      <div class="container" id="alert_placeholder"></div>
+      <div class="container">
+
+      <div class="starter-template">
+        <h1><span class="text-capitalize">TPS API Access</span></h1>
+        <p>&nbsp;</p>
+        <p> <img src="http://www.myevolution.my/wp-content/uploads/2013/06/myevolution-logo-full-300x67.png" class="img-rounded" alt="the logo"></p>
+      </div>
+
+
+
+    </div>
+
+
+    <div class="container">
+
+      <div class="row">
+    <div class="col-md-1"></div>
+    <div class="col-md-10">
+
+                <div class="panel-group">
+  <div class="panel panel-default">
+        <div id="timestamp" class="panel-heading">{{TIMESTAMP}}</div>
+        <div class="panel-body" style="text-align:center;">
+ <table id="table-list" class="table table-hover table-striped">
+<tr>
+    <th>&nbsp;</th>
+    <th>Origin</th>
+    <th>Username</th>
+    <!-- <th style="text-align:center;">Token</th> -->
+    <th>Route</th>
+    <th>Method</th>
+    <th style="text-align:center;">Status</th>
+    <th style="text-align:center;">Timestamp</th>
+</tr>
+
+<tr ng-repeat="x in apicalls">
+     <td><!-- <span class="label label-info">{{$index + 1}}</span> -->&nbsp;</td>
+     <td style="text-align:left;">{{x.origin}}</td>
+     <td style="text-align:left;">{{x.username}}</td>
+     <!-- <td style="text-align:center;"><span class="badge">{{x.token}}</span></td> -->
+     <td style="text-align:left;">{{x.route}}</td>
+     <td style="text-align:left;">{{x.method}}</td>
+     <td style="text-align:center;"><span class="label {{x.status === 'SUCCESS' ? 'label-success' : (x.status === 'NOTAUTHORIZED' ? 'label-danger' : 'label-default')}}">{{x.status}}</span></td>
+     <td style="text-align:center;">{{x.svr_timestamp}}</td>
+</tr>
+
+</table>
+        </div>
+        <div class="panel-footer">by <a href="http://www.myevolution.my/">myevolution</a></div>
+  </div>
+</div>
+
+    </div>
+    <div class="col-md-1"></div>
+  </div>
+
+    </div> <!-- /container -->
+
+        <!-- ============================================================================================ -->
+<!-- Latest compiled and minified JavaScript -->
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.1.1/jquery.min.js"></script>
+<script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+<script type="text/javascript">
+'use strict';
+
+var app = angular.module('myApp', []);
+app.controller('AccessListCtrl', function($scope, $http, $timeout) {
+// Function to get the data
+$scope.getData = function(){
+    $http.get('apilist/50')
+        .success(function(response) {
+        $scope.apicalls = response.data;
+        $scope.TIMESTAMP = clock();
+        console.log('Fetched data!');
+    });
+};
+// Function to replicate setInterval using $timeout service.
+$scope.intervalFunction = function(){
+    $timeout(function() {
+        $scope.getData();
+        $scope.intervalFunction();
+    }, 10000)
+};
+$scope.getData();
+$scope.intervalFunction();// Kick off the interval
+});
+
+function clock() {var now = new Date();var TmStr = 'Timestamp: ' + (now.getDate())+"/"+(now.getMonth()+1)+"/"+now.getFullYear() + ' ' + ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2) + meridiem(now.getHours());return TmStr;}
+function meridiem(hour) { if (hour > 11) { return 'PM'; } else { return 'AM'; }}
+
+</script>
+
+    </body>
+</html>
+
