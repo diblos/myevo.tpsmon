@@ -5,13 +5,13 @@ define('dTRUE', 1);
 define('dFALSE', 0);
 define('DRIFT_SECONDS',60);
 define('SOCKET_RESET_INTERVAL',3600);
+define('SOCKET_READ_TIMEOUT',5);
 
 ini_set('error_reporting', E_ERROR);
 ini_set('date.timezone', 'Asia/Kuala_Lumpur');
 // ini_set('date.timezone', 'UTC');
 
 // define('TAGS', array('DEV','DTM','EVT','AON','BON','TMP','TAG','STT','STP'));
-// define('EVENTS', array('900'=>'No Event','901'=>'No Power','902'=>'No Battery','903'=>'Low Battery','904'=>'Tampered Case'));
 $EVENTS = array('900'=>'No Event','901'=>'No Power','902'=>'No Battery','903'=>'Low Battery','904'=>'Tampered Case');
 
 // require('public/connect.php');// DEV HERE
@@ -308,7 +308,8 @@ function connection_on(&$sock)
 	$sock = socket_create(AF_INET, SOCK_STREAM, 0); // 0 for  SQL_TCP
 	// Set socket option to reuse same port, avoiding system waiting
 	if(!socket_set_option($sock, SOL_SOCKET, SO_REUSEADDR, 1)){echo 'Unable to set SO_REUSEADDR option on socket: '.socket_strerror(socket_last_error()).PHP_EOL;};
-	if(!socket_set_option($sock,SOL_SOCKET, SO_RCVTIMEO, array("sec"=>5, "usec"=>0))){echo 'Unable to set SO_RCVTIMEO option on socket: '.socket_strerror(socket_last_error()).PHP_EOL;};
+	// Set read timeout to the socket - to avoid server - client wait
+	if(!socket_set_option($sock,SOL_SOCKET, SO_RCVTIMEO, array("sec"=>SOCKET_READ_TIMEOUT, "usec"=>0))){echo 'Unable to set SO_RCVTIMEO option on socket: '.socket_strerror(socket_last_error()).PHP_EOL;};
 	// Bind the socket to an address/port
 	socket_bind($sock, 0, $port) or die('Could not bind to address');  // 0 for localhost
 	// Start listening for connections
@@ -341,11 +342,6 @@ $endTime = getNextDT(time(),$startTime,SOCKET_RESET_INTERVAL);
 //loop and listen
 while (true) {
    	
-   	// $tries = 3;
-   	// $counter = 0;
-
-	// echo ' ++ '.PHP_EOL;
-	// echo $startTime.' >> '.$endTime.' ['.($endTime-$startTime).']'.PHP_EOL;
 	if(time() > $endTime)goto disconnect;
 	$endTime = getNextDT(time(),$startTime,SOCKET_RESET_INTERVAL);
 	
