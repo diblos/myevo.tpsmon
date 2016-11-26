@@ -54,7 +54,7 @@ TcfTransactionLog.csv
 *.eep
 *.elf
 *.hex
-*.lls
+*.lss
 *.map
 Makefile
 _config.ini
