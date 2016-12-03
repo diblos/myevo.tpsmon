@@ -2,7 +2,7 @@
 // Routes
 $app->get('/admin', function ($request, $response, $args) {
     // Sample log message
-    $this->logger->info("Slim-Skeleton '/admin' route");
+    // $this->logger->info("Slim-Skeleton '/admin' route");
     // Render index view
     return $this->renderer->render($response, 'admin-attendance.phtml', $args);
 });
@@ -12,10 +12,6 @@ $app->get('/admin/apicall', function ($request, $response, $args) {
     //$this->logger->info("Slim-Skeleton '/admin/tpsapi' route");
     // Render index view
     return $this->renderer->render($response, 'admin-api-access.phtml', $args);
-                //     $newResponse = $response
-                // ->withJson($r,204);
-
-                //  return $newResponse;
 });
 
 $app->get('/admin/apilist/[{limit}]', function ($request, $response, $args) {
@@ -35,7 +31,7 @@ $app->get('/admin/apilist/[{limit}]', function ($request, $response, $args) {
                 $r->result = 'success';
                 $r->data=$data;
                 //$r->user=$user;
-                $newResponse = $response
+                $newResponse = $response->withHeader('Access-Control-Allow-Origin','*')
                 ->withJson($r,200);
             }
 
@@ -69,7 +65,7 @@ $app->get('/admin/list/[{limit}]', function ($request, $response, $args) {
                 $r->result = 'success';
                 $r->data=$data;
                 //$r->user=$user;
-                $newResponse = $response
+                $newResponse = $response->withHeader('Access-Control-Allow-Origin','*')
                 ->withJson($r,200);
             }
 
