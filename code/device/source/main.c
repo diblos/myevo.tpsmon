@@ -36,6 +36,10 @@
 int UPDATE_FLAG = 0;
 int HB_RESET_FLAG = 0;
 
+bool MODEDEBUG = true;// HIDE VERBOSE TEXT WHEN 3G DIALLING - TRUE FOR SHOWING
+bool MODESILENCE = true;// SILENT ALL NOTIFICATION SOUND EXCEPT CARD READ NOTIFICATIONS - TRUE FOR QUIET
+bool MODEREBOOT =  true;// REBOOT DEVICE AFTER CONNECTION FAILED
+int RETRYCOUNTER = 20;
 //========================================================================================================================================================================
 void ShowProgressMessage(char* message1, char* message2, unsigned char beeptone);
 void ShowProgressMessage(char* message1, char* message2, unsigned char beeptone)
@@ -45,8 +49,7 @@ void ShowProgressMessage(char* message1, char* message2, unsigned char beeptone)
 	#define widthStatus 320
 	#define heightStatus 16
 	
-	if(beeptone != 0)
-		beepstd();
+	if((beeptone != 0)&&(MODESILENCE==false)) beepstd();
 	lcd_draw_fillrect(xStatus, yStatus, widthStatus, heightStatus, BLACK);
 	if(message1 != 0)
 		lcd_draw_string(message1, font_Fixesys16, xStatus, yStatus, WHITE, TRANSPARENT);
@@ -159,7 +162,7 @@ unsigned int getTime(int timezone)
 				
 	} else {
 	  lcd_draw_string("NO DATE !!!", font_MsSerif24, 0, 0, BLACK, TRANSPARENT);
-	  sound_negative();
+	  //sound_negative();
 	  return 0;
 	}
 	
@@ -315,7 +318,7 @@ int scom_Status(struct_pppStatus* outPppStatus, bool display){
 	if(display) ShowProgressMessage("3G Checking Status", 0, 0);
 	// 0 means ok
 	if(scomFlagStatus == 0){
-		if(display){
+		if ((MODEDEBUG == true)&&(display)){
 			ShowProgressMessage("3G Checking scom Status OK", 0, 0);
 			//display all Status Out
 			lcd_draw_fillrect(120, 30, 80, 130, BLACK);
@@ -653,25 +656,27 @@ bool Connection3G(struct_pppStatus outPppStatus,bool notify)
 	
 	h2core_set_debug(H2HW_3G|H2HW_USB|H2HW_TTL);
 	
-	//Draw Something
-	lcd_draw_fillrect(0, 0, LCD_WIDTH, LCD_HEIGHT, BLACK);
-	lcd_draw_string("TPS COMM", font_MsSerif24, 0, 0, WHITE, TRANSPARENT);
+	if (MODEDEBUG == true){
+		//Draw Something
+		lcd_draw_fillrect(0, 0, LCD_WIDTH, LCD_HEIGHT, BLACK);
+		lcd_draw_string("TPS COMM", font_MsSerif24, 0, 0, WHITE, TRANSPARENT);
 	
-	lcd_draw_string("Active  :", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);
-	y_lcd += 15;
-	lcd_draw_string("Error   :", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);
-	y_lcd += 15;
-	lcd_draw_string("Dev     :", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);
-	y_lcd += 15;
-	lcd_draw_string("Module  :", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);
-	y_lcd += 15;
-	lcd_draw_string("Signal  :", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);
-	y_lcd += 15;
-	lcd_draw_string("APN     :", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);
-	y_lcd += 15;
-	lcd_draw_string("UserID  :", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);
-	y_lcd += 15;
-	lcd_draw_string("Password:", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);
+		lcd_draw_string("Active  :", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);
+		y_lcd += 15;
+		lcd_draw_string("Error   :", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);
+		y_lcd += 15;
+		lcd_draw_string("Dev     :", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);
+		y_lcd += 15;
+		lcd_draw_string("Module  :", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);
+		y_lcd += 15;
+		lcd_draw_string("Signal  :", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);
+		y_lcd += 15;
+		lcd_draw_string("APN     :", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);
+		y_lcd += 15;
+		lcd_draw_string("UserID  :", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);
+		y_lcd += 15;
+		lcd_draw_string("Password:", font_Fixesys16, 0, y_lcd, WHITE, TRANSPARENT);		
+	}
 	
 	h2core_task();//to turn off watchdog ???
 	
@@ -679,6 +684,7 @@ bool Connection3G(struct_pppStatus outPppStatus,bool notify)
 	//TURN ON PPP
 	//
 	RECONNECT:
+	RETRYCOUNTER = RETRYCOUNTER - 1;
 	scomConnectStatus = scom_on_ppp();
 	if(scomConnectStatus != 0){
 		//failed to turn on
@@ -687,7 +693,7 @@ bool Connection3G(struct_pppStatus outPppStatus,bool notify)
 		
 		scom_set_ppp(0,0,0,0);
 		
-		if(notify) sound_negative();
+		if((notify)&&(MODESILENCE==false)) sound_negative();
 		goto RECONNECT;
 	
 	}
@@ -699,7 +705,7 @@ bool Connection3G(struct_pppStatus outPppStatus,bool notify)
 	if(scomFlagStatus != 0)
 	{
 		ShowProgressMessage("scom error", 0, 0);
-		if(notify) sound_negative();
+		if((notify)&&(MODESILENCE==false)) sound_negative();
 		sleep(2000);
 		scomDisconnectStatus = scom_Disconnect();
 		lcd_draw_fillrect(0, 0, LCD_WIDTH, LCD_HEIGHT, BLACK);
@@ -711,7 +717,7 @@ bool Connection3G(struct_pppStatus outPppStatus,bool notify)
 		ShowProgressMessage("active is off", 0, 0);sleep(200);
 		if(gettickcount() > iTickWaitPppOn)
 		{
-			if(notify) sound_negative();
+			if((notify)&&(MODESILENCE==false)) sound_negative();
 			sleep(2000);
 			scomDisconnectStatus = scom_Disconnect();
 			lcd_draw_fillrect(0, 0, LCD_WIDTH, LCD_HEIGHT, BLACK);
@@ -727,8 +733,8 @@ bool Connection3G(struct_pppStatus outPppStatus,bool notify)
 		
    // ok
 	
-	
-	beepstd();
+	RETRYCOUNTER = 20;
+	if(MODESILENCE==false) beepstd();
 	lcd_draw_fillrect(0, 0, LCD_WIDTH, LCD_HEIGHT, BLACK);
 	return true;
 	
@@ -1228,16 +1234,22 @@ int main(void)
 			};			
 		}	
 		
+		sprintf(messageBuffer,"R:%d",RETRYCOUNTER);
+		ShowProgressMessage("TCP SEND NOT OK", 0, 0); sleep(500);
+		
+		if(RETRYCOUNTER<=0) goto RESTART;
 		sleep(500);
 	} // while
 	
+	RESTART:
 	ShowProgressMessage("Turn Off RF", 0, 0);
 	pcd_rf_off();
-	//beepstd();
+	if(MODESILENCE==false) beepstd();
+	h2core_soft_restart();
 	
 	//
 	//END: Exit App, return back to main application sector
-	//
-	h2core_exit_to_main_sector();
+	//h2core_exit_to_main_sector();
+	
 }
 
