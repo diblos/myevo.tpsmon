@@ -61,3 +61,7 @@ _config.ini
 *.d
 *.o
 *.mk
+
+# PHP Test Files
+# =========================
+*test*.php
