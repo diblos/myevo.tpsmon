@@ -32,6 +32,7 @@
 #define false 0
 
 #define Y2K 946684800
+#define RETRYCOUNT 10;// COUNT BEFORE REBOOT DEFICE
 
 int UPDATE_FLAG = 0;
 int HB_RESET_FLAG = 0;
@@ -39,7 +40,7 @@ int HB_RESET_FLAG = 0;
 bool MODEDEBUG = true;// HIDE VERBOSE TEXT WHEN 3G DIALLING - TRUE FOR SHOWING
 bool MODESILENCE = true;// SILENT ALL NOTIFICATION SOUND EXCEPT CARD READ NOTIFICATIONS - TRUE FOR QUIET
 bool MODEREBOOT =  true;// REBOOT DEVICE AFTER CONNECTION FAILED
-int RETRYCOUNTER = 20;
+int RETRYCOUNTER = RETRYCOUNT;// REBOOT DEVICE COUNTER
 //========================================================================================================================================================================
 void ShowProgressMessage(char* message1, char* message2, unsigned char beeptone);
 void ShowProgressMessage(char* message1, char* message2, unsigned char beeptone)
@@ -733,7 +734,7 @@ bool Connection3G(struct_pppStatus outPppStatus,bool notify)
 		
    // ok
 	
-	RETRYCOUNTER = 20;
+	RETRYCOUNTER = RETRYCOUNT;
 	if(MODESILENCE==false) beepstd();
 	lcd_draw_fillrect(0, 0, LCD_WIDTH, LCD_HEIGHT, BLACK);
 	return true;
@@ -1234,10 +1235,12 @@ int main(void)
 			};			
 		}	
 		
-		sprintf(messageBuffer,"R:%d",RETRYCOUNTER);
-		ShowProgressMessage("TCP SEND NOT OK", 0, 0); sleep(500);
+		if (MODEDEBUG==true){
+			sprintf(messageBuffer,"R:%d",RETRYCOUNTER);
+			ShowProgressMessage(messageBuffer, 0, 0); sleep(500);
+		}
 		
-		if(RETRYCOUNTER<=0) goto RESTART;
+		if((RETRYCOUNTER<=0)&&(MODEREBOOT==true)) goto RESTART;
 		sleep(500);
 	} // while
 	
