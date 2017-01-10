@@ -32,7 +32,8 @@
 #define false 0
 
 #define Y2K 946684800
-#define RETRYCOUNT 10;// COUNT BEFORE REBOOT DEFICE
+#define RETRYPERIOD 60; //RETRY SECONDS
+#define RETRYCOUNT 5;// COUNT BEFORE REBOOT DEFICE
 
 int UPDATE_FLAG = 0;
 int HB_RESET_FLAG = 0;
@@ -40,7 +41,7 @@ int HB_RESET_FLAG = 0;
 bool MODEDEBUG = true;// HIDE VERBOSE TEXT WHEN 3G DIALLING - TRUE FOR SHOWING
 bool MODESILENCE = true;// SILENT ALL NOTIFICATION SOUND EXCEPT CARD READ NOTIFICATIONS - TRUE FOR QUIET
 bool MODEREBOOT =  true;// REBOOT DEVICE AFTER CONNECTION FAILED
-int RETRYCOUNTER = RETRYCOUNT;// REBOOT DEVICE COUNTER
+
 //========================================================================================================================================================================
 void ShowProgressMessage(char* message1, char* message2, unsigned char beeptone);
 void ShowProgressMessage(char* message1, char* message2, unsigned char beeptone)
@@ -91,7 +92,7 @@ void getDeviceID(char* deviceIdHex){
 	//} else  { 
 		//sprintf(deviceIdHex,"");
 	//}
-	char* getid[20];//  = ini_getstring(CONFIG_FILENAME, "configurations", "deviceid", "57000");
+	char* getid[50];//  = ini_getstring(CONFIG_FILENAME, "configurations", "deviceid", "57000");
 	int idlen =0;
 	
 	pcd_get_info(PCD_EEA_PRODUCT_SN, getid, idlen);// PCD Serial Number
@@ -320,7 +321,7 @@ int scom_Status(struct_pppStatus* outPppStatus, bool display){
 	// 0 means ok
 	if(scomFlagStatus == 0){
 		if ((MODEDEBUG == true)&&(display)){
-			ShowProgressMessage("3G Checking scom Status OK", 0, 0);
+			ShowProgressMessage("3G Checking Status OK", 0, 0);
 			//display all Status Out
 			lcd_draw_fillrect(120, 30, 80, 130, BLACK);
 			lcd_draw_string(outPppStatus->active, font_Fixesys16, 120, 30, WHITE, TRANSPARENT);
@@ -348,13 +349,13 @@ int scom_on_ppp(){
 	
 	scomConnectSt = scom_set_ppp(1,0,0,0);
 	
-	ShowProgressMessage("3G Turning On", 0, 0);  
+	//ShowProgressMessage("3G Turning On", 0, 0);  
 	
 	//return scomConnectSt;
 	
 	if(scomConnectSt == 0){
 		//sleep(60000);      //Wait 1.10min to turn on 3G
-		sleep(10000);
+		//sleep(10000);
 		ShowProgressMessage("3G On!!!", 0, 0);
 		sleep(500);
 		return 0;
@@ -401,14 +402,14 @@ int scom_Tcp_Write(int tcpCID,char* data,int datalen){
 
 int scom_Tcp_Read(int* intcpCID){
 	char* respData = 0;
-	unsigned char bufData[500] = {0};
+	unsigned char bufData[100] = {0};
 	int tcpReadLength = 0;
 	int i = 0;
 	int errCode=0;
 		
 	ShowProgressMessage("TCP Reading...", 0, 0);
 	
-	tcpReadLength = tcp_read(intcpCID,&respData,20000);
+	tcpReadLength = tcp_read(intcpCID,&respData,2000);
 
 	if(tcpReadLength>0){
 		
@@ -450,16 +451,19 @@ int scom_Tcp_Read(int* intcpCID){
 		// ATT:1:{s:3:UPD;i:0;} (for the pairing serveice)
 		else{
 			
-			char tag[100][500];
+			char tag[100][100];
 			int tagno = 0;
 			
 			// explode the strint
+			// 2 tages, than by 3, and 3
 			for(i = 0; i<tcpReadLength; i++){
 	
+	            // ; : { }
 				if((respData[i]==0X7B)||(respData[i]==0X3A)||(respData[i]==0X3B)||(respData[i]==0X7D)){
 					strcpy(tag[tagno++],bufData);
 					memset(bufData,0,sizeof(bufData));
 				}else{
+					// normal, copy by char
 					sprintf(&bufData[strlen(bufData)], "%c", respData[i]);
 				}
 				
@@ -556,30 +560,62 @@ int scom_Tcp_Read(int* intcpCID){
 					
 			}else if(strcmp(tag[0],"ATT") == 0){// ATT Data response
 				ShowProgressMessage("ATT Data response", 0, 0);
-				sleep(100);
 				int item = atoi(tag[1]);
+				
+				// ATT should have 2 field
+				if (item==2)
+				{	
+					// update ?
+					if (strcmp(tag[2],"s")==0 && 
+						strcmp(tag[3],"3")==0 &&
+						strcmp(tag[4],"UPD")==0 &&
+						strcmp(tag[5],"i")==0 &&
+						strcmp(tag[6],"1")==0)
+					{ 
+						UPDATE_FLAG=1;
+						//ShowProgressMessage("UPDATE FLAG 1", 0, 0);sleep(1000);
+					} else 
+					{
+						UPDATE_FLAG=0;
+						//ShowProgressMessage("UPDATE FLAG 0", 0, 0);sleep(1000);
+						//ShowProgressMessage(tag[2], 0, 0);sleep(1000);
+						//ShowProgressMessage(tag[3], 0, 0);sleep(1000);
+						//ShowProgressMessage(tag[4], 0, 0);sleep(1000);
+						//ShowProgressMessage(tag[5], 0, 0);sleep(1000);
+						//ShowProgressMessage(tag[6], 0, 0);sleep(1000);						
+					}					
 					
-				for(int i=2; i< tagno; i++){
-						
-					if(strcmp(tag[i],"s") == 0){
-						if(strlen(tag[i+2])==atoi(tag[i+1])){
-							sprintf(curTag, "%s", tag[i+2]);
-						}							
-					}else if(strcmp(tag[i],"i") == 0){
-		    			if(strcmp(curTag,"UPD") == 0){
-							if(strcmp(tag[i+1],"1") == 0){
-								UPDATE_FLAG=1;
-							}else{
-								UPDATE_FLAG=0;
-							}								
-							item=item-1;
-						}
-					}
-					if(item==0)break;
-				}
+					// others ?
+											
+				} else
+				{
+					// bad response
+					ShowProgressMessage("Invalid ATT response ( wrong args)", 0, 0);
+				    errCode = 4;
 					
+				};					
+				
+				//for(int i=2; i< tagno; i++){
+						//
+					//if(strcmp(tag[i],"s") == 0){
+						//if(strlen(tag[i+2])==atoi(tag[i+1])){
+							//sprintf(curTag, "%s", tag[i+2]);
+						//}							
+					//}else if(strcmp(tag[i],"i") == 0){
+		    			//if(strcmp(curTag,"UPD") == 0){
+							//if(strcmp(tag[i+1],"1") == 0){
+								//UPDATE_FLAG=1;
+							//}else{
+								//UPDATE_FLAG=0;
+							//}								
+							//item=item-1;
+						//}
+					//}
+					//if(item==0)break;
+				//}
+					//
 			}else{
-				ShowProgressMessage("Invalid response", 0, 0);
+				ShowProgressMessage("Invalid response command (need ATT or STS or CFG)", 0, 0);
 				errCode = 4;
 			};
 			
@@ -628,7 +664,7 @@ bool CheckConnection3G(struct_pppStatus outPppStatus){
 		// chech ppp is active
 		if(strcmp(outPppStatus.active,"On")!= 0)
 		{   
-			ShowProgressMessage("active is off", 0, 0);sleep(200);
+			//if (MODEDEBUG==true) ShowProgressMessage("active is off", 0, 0);sleep(200);
 		    return false;
 		};
 		return true;
@@ -637,8 +673,8 @@ bool CheckConnection3G(struct_pppStatus outPppStatus){
 	
 }
 
-bool Connection3G(struct_pppStatus outPppStatus,bool notify);
-bool Connection3G(struct_pppStatus outPppStatus,bool notify)
+bool Connection3G(struct_pppStatus outPppStatus,bool notify,bool isFirstBoot);
+bool Connection3G(struct_pppStatus outPppStatus,bool notify,bool isFirstBoot)
 {
 	//init length y axis display	
 	int y_lcd = 30;
@@ -657,7 +693,7 @@ bool Connection3G(struct_pppStatus outPppStatus,bool notify)
 	
 	h2core_set_debug(H2HW_3G|H2HW_USB|H2HW_TTL);
 	
-	if (MODEDEBUG == true){
+	if (MODEDEBUG == true && isFirstBoot){
 		//Draw Something
 		lcd_draw_fillrect(0, 0, LCD_WIDTH, LCD_HEIGHT, BLACK);
 		lcd_draw_string("TPS COMM", font_MsSerif24, 0, 0, WHITE, TRANSPARENT);
@@ -685,7 +721,7 @@ bool Connection3G(struct_pppStatus outPppStatus,bool notify)
 	//TURN ON PPP
 	//
 	RECONNECT:
-	RETRYCOUNTER = RETRYCOUNTER - 1;
+	
 	scomConnectStatus = scom_on_ppp();
 	if(scomConnectStatus != 0){
 		//failed to turn on
@@ -698,16 +734,16 @@ bool Connection3G(struct_pppStatus outPppStatus,bool notify)
 		goto RECONNECT;
 	
 	}
-	iTickWaitPppOn = gettickcount() + 120000;//wait up to 120sec for module to register to network, subject to signal
+	iTickWaitPppOn = gettickcount() + (isFirstBoot ? 120000:15000);//wait up to 120sec for module to register to network, subject to signal
 
 	//Get SCOM Status
 	RESTATUS1:
-	scomFlagStatus = scom_Status(&outPppStatus,true);
+	scomFlagStatus = scom_Status(&outPppStatus,(isFirstBoot?true:false));
 	if(scomFlagStatus != 0)
 	{
 		ShowProgressMessage("scom error", 0, 0);
 		if((notify)&&(MODESILENCE==false)) sound_negative();
-		sleep(2000);
+		sleep(1000);
 		scomDisconnectStatus = scom_Disconnect();
 		lcd_draw_fillrect(0, 0, LCD_WIDTH, LCD_HEIGHT, BLACK);
 	    return false;
@@ -715,26 +751,24 @@ bool Connection3G(struct_pppStatus outPppStatus,bool notify)
 	
 	if(strcmp(outPppStatus.active,"On")!= 0)
 	{   
-		ShowProgressMessage("active is off", 0, 0);sleep(200);
+		//if (MODEDEBUG==true) ShowProgressMessage("active is off", 0, 0);sleep(200);
 		if(gettickcount() > iTickWaitPppOn)
 		{
 			if((notify)&&(MODESILENCE==false)) sound_negative();
-			sleep(2000);
+			sleep(500);
 			scomDisconnectStatus = scom_Disconnect();
 			lcd_draw_fillrect(0, 0, LCD_WIDTH, LCD_HEIGHT, BLACK);
 			return false;
 		}
 		else
 		{
-			sleep(1000);
+			sleep(500);
 			goto RESTATUS1;
 		}
 	}
 		
 		
    // ok
-	
-	RETRYCOUNTER = RETRYCOUNT;
 	if(MODESILENCE==false) beepstd();
 	lcd_draw_fillrect(0, 0, LCD_WIDTH, LCD_HEIGHT, BLACK);
 	return true;
@@ -776,7 +810,9 @@ int TCPSEND(char* ipAddress,char* port, char* toSendCommands){
 		TCPSEND_Response =false;
 		goto DISCONNECTTCP;	
 	}else{
-		sleep(1000);
+		// all good
+		//sleep(50);
+		NULL;
 	}
 		
 	//Tcp Read
@@ -785,7 +821,9 @@ int TCPSEND(char* ipAddress,char* port, char* toSendCommands){
 		TCPSEND_Response=false;
 		goto DISCONNECTTCP;
 	}else{
-		sleep(1000);
+		// all ok
+		//sleep(50);
+		NULL;
 	}
 	
 	//TCPSEND_Response = true;		
@@ -800,16 +838,7 @@ int TCPSEND(char* ipAddress,char* port, char* toSendCommands){
 	return TCPSEND_Response;
 }
 
-int isReset(void);
-int isReset(void){
-	char* getid  = ini_getstring(CONFIG_FILENAME, "configurations", "reset", "N");
-	ini_free_resource();
-	if(strcmp(getid,"Y") == 0){
-		return 1;
-	}else{
-		return 0;
-	}	
-}
+
 //========================================================================================================================================================================
 //
 // START:
@@ -838,6 +867,7 @@ int main(void)
 	// hb config stuff
 	unsigned int startHB=0;
 	unsigned int periodHB=60;
+	unsigned int HBReset = false;
 	
 	// Calculated HB stuff
 	unsigned int previousHB =0;
@@ -847,10 +877,13 @@ int main(void)
 	struct_pppStatus outPppStatus;
 	
 	int isConnected = 0;
-    char toSendCommands[10][500];
+    char toSendCommands[50][500];
 	int toSendCommandsNb = 0;
-	for(int i=0;i<10;i++){strcpy(toSendCommands[i],"");};
-	int period_retry=300;
+	for(int i=0;i<50;i++){strcpy(toSendCommands[i],"");};
+	int period_retry=RETRYPERIOD;
+	int RetryCounter = RETRYCOUNT;
+	
+	int ServerFailedRetryCounter = 0;
 	
 	//
 	// Init all hardware
@@ -869,29 +902,61 @@ int main(void)
 	// READ CONFIG FILE - SERVER
 	char* ipAddress = ini_getstring(CONFIG_FILENAME, "server", "ip", "192.168.40.110");
 	char* port = ini_getstring(CONFIG_FILENAME, "server", "port", "57000");
-	
-	// READ CONFIG FILE - HEARTBEAT
-	startHB = ini_getint(CONFIG_FILENAME, "configurations", "time", 0);
-	periodHB = ini_getint(CONFIG_FILENAME, "configurations", "duration", 60);
-	previousHB = ini_getint(CONFIG_FILENAME, "heartbeat", "prevstart", 0);
-	nextHB = ini_getint(CONFIG_FILENAME, "heartbeat", "prevstop", 0);		
-	
-	ini_free_resource();
+		
+	//ini_free_resource();
 	
    // GET DEVICE ID
    getDeviceID(deviceIdHex);
    
 	// Connect
-	if (Connection3G(outPppStatus,true)){ShowProgressMessage("3g succesfully connected", 0, 0);	isConnected=1;
-	 					//Send Configuration request
+	if (Connection3G(outPppStatus,true,true)){
+
+                     ShowProgressMessage("3g succesfully connected", 0, 0);	
+					 
+					 isConnected=1;
+	 				
+					 	//Send Configuration request
 					sprintf(messageBuffer,"CFG:4{s:3:DEV;s:%d:%s;s:3:DTM;i;%u;}",
 					strlen(deviceIdHex),deviceIdHex,
 					getTime(timezone)
-					);
+					);						
+					TCPSEND(ipAddress,port,messageBuffer);
 						
-					TCPSEND(ipAddress,port,messageBuffer);	
-	};
+	} else isConnected =0;
 		
+	// READ CONFIG FILE - HEARTBEAT
+	startHB = ini_getint(CONFIG_FILENAME, "configurations", "time", 0);
+	periodHB = ini_getint(CONFIG_FILENAME, "configurations", "duration", 60);
+	HBReset = (strcmp(ini_getstring(CONFIG_FILENAME, "configurations", "reset", "N"),"N")==0 ? false : true);
+	
+	previousHB = ini_getint(CONFIG_FILENAME, "heartbeat", "prevstart", 0);
+	nextHB = ini_getint(CONFIG_FILENAME, "heartbeat", "prevstop", 0);		
+		
+	 //CHECK PENDING QUEUE
+	int nbQueue = ini_getint(CONFIG_FILENAME, "queue", "nb", 0);
+	for	(int i=0; i< nbQueue; i++)
+	{   
+		sprintf(messageBuffer,"q%d",i);
+		char* mess = ini_getstring(CONFIG_FILENAME, "queue", messageBuffer, "");	
+		if (strlen(mess)>0) 
+		{ strcpy(toSendCommands[toSendCommandsNb], mess);
+		  // HACK 
+		  for(int j=0;j<strlen(toSendCommands[toSendCommandsNb]);j++)
+		  {
+		  	  if(toSendCommands[toSendCommandsNb][j]=='|') toSendCommands[toSendCommandsNb][j]=';';
+		  };
+		  toSendCommandsNb++;
+		};		  
+	};
+	
+	if(nbQueue !=0){
+		ini_setint(CONFIG_FILENAME, "queue", "nb", 0);	
+		ini_commit();// Commit INI file changes
+		ini_free_resource();							
+	};	
+				
+		
+	// loop main
 	while(1)
 	{
 		//Mandatory core task
@@ -1082,13 +1147,14 @@ int main(void)
 						nextHB
 				);
 			strcpy(toSendCommands[toSendCommandsNb++],messageBuffer);
+				
 			
-			sleep(500);
+			//sleep(500);
 			lcd_reset();
 			
 			//RESET HEARTBEAT
 			//startHB
-			if(isReset()==1){startHB=dateTPS;};
+			if(HBReset==1){startHB=dateTPS;};
 			
 			continue;
 		} // type a
@@ -1134,79 +1200,146 @@ int main(void)
 		
 		//sprintf(messageBuffer,"DATE= (%u)   \nPREV= (%u)    \nNEXT= (%u)    \nCNT=  (%d)    ",currentDT, previousHB, nextHB, countdownSec);
 		
-		sprintf(messageBuffer,"DATE= (20%02u-%02u-%02u %02u:%02u:%02u)   \nPREV= (20%02u-%02u-%02u %02u:%02u:%02u)    \nNEXT= (20%02u-%02u-%02u %02u:%02u:%02u)    \nCNT=  (%d)    ",
+		sprintf(messageBuffer,"DATE= (20%02u-%02u-%02u %02u:%02u:%02u)   \nPREV= (20%02u-%02u-%02u %02u:%02u:%02u)    \nNEXT= (20%02u-%02u-%02u %02u:%02u:%02u)    \nCNT=  (%d) %s%d %d %d %d    \nDEVID=(%s)",
 				currentDTTime.year,currentDTTime.month,currentDTTime.day,currentDTTime.hour,currentDTTime.minute,currentDTTime.second,
 				previousHBTime.year,previousHBTime.month,previousHBTime.day,previousHBTime.hour,previousHBTime.minute,previousHBTime.second,
 				nextHBTime.year,nextHBTime.month,nextHBTime.day,nextHBTime.hour,nextHBTime.minute,nextHBTime.second,
-				countdownSec);
+				countdownSec, (isConnected? "": "X"),(isConnected? 0: (period_retry - (currentDT % period_retry))), RetryCounter ,ServerFailedRetryCounter, toSendCommandsNb,
+				deviceIdHex
+				);
 	
 		lcd_draw_string(messageBuffer, font_default16, 50, 100, BLUE, BLACK);
 	
-	     // replace 	
-		sprintf(messageBuffer,"                                               ");	
-		ShowProgressMessage(messageBuffer, 0, 0);
+
 		
-		 // if not connected, reconnect
-		 // todo : check connection still on currenttimeb mod 300
-		 // check if cnnect every 5 min or if sometihing to send
+		 // if connected, check every few min if still there
+		if ((isConnected ==1)&&(currentDT % period_retry)==0) 
+		{
+				// check
+               //ShowProgressMessage("                       ", 0, 0);
+			   //ShowProgressMessage("Check if 3G enabled", 0, 0);
+			   if (CheckConnection3G(outPppStatus)==true) {
+				   isConnected=1;				   
+			   }else{
+				   ShowProgressMessage("3G disconnected.", 0, 0);
+				   isConnected=0;	   
+			   }
+		};
 		
-		
-		if (((currentDT % period_retry)==0) || (toSendCommandsNb != 0))
+		// retry if disconnect and every xmin
+		if  ((isConnected ==0)&&(currentDT % period_retry)==0) 
 		{ 
-			   // check
-			   ShowProgressMessage("Check if 3G enabled", 0, 0);
-			   
-               if (CheckConnection3G(outPppStatus)==true) {
-					isConnected=1;
-					ShowProgressMessage("3G enabled", 0, 0);sleep(500);
-				}else{
-					// try reconnect
-					ShowProgressMessage("3g disabled, try to reconnect", 0, 0);sleep(100);
-					if (Connection3G(outPppStatus,true)){isConnected=1;ShowProgressMessage("3g connected", 0, 0); }else {ShowProgressMessage("3g failed", 0, 0);isConnected=0;};
-				} 
+				// try reconnect
+				ShowProgressMessage("3g disabled, try to reconnect", 0, 0);sleep(100);
+				if (Connection3G(outPppStatus,true,false))
+				{ isConnected=1;
+					RetryCounter = RETRYCOUNT;
+					ShowProgressMessage("3g connected", 0, 0); 
+				}
+				else {
+				   ShowProgressMessage("3g failed", 0, 0);
+				   isConnected=0;
+				   RetryCounter--;
+				
+						   if((RetryCounter<=0)&&(MODEREBOOT==true)) 
+						   {	
+							    // RFID module off				 
+								ShowProgressMessage("Turn Off RF", 0, 0);
+								pcd_rf_off();
+								
+								
+								// store queue in file
+								//ini_setstring(CONFIG_FILENAME, "testqueue", "", "");
+								ini_setint(CONFIG_FILENAME, "queue", "nb", toSendCommandsNb);
+								for	(int i=0; i< toSendCommandsNb; i++)
+								{
+									//HACK TODO PUT TO SERVER
+									for(int j=0;j<strlen(toSendCommands[i]);j++)
+									{
+										if(toSendCommands[i][j]==';') toSendCommands[i][j]='|';
+									}
+									 sprintf(messageBuffer,"q%d",i);
+									 ini_setstring(CONFIG_FILENAME, "queue", messageBuffer, toSendCommands[i]);
+								};
+								
+								ini_commit();// Commit INI file changes
+								ini_free_resource();							
+								
+								// reboot
+								if(MODESILENCE==false) beepstd();
+								sleep(5000);
+								h2core_soft_restart();
+	
+								//
+								//END: Exit App, return back to main application sector
+								//h2core_exit_to_main_sector();
+						   }; // if retry reboot
+				   
+				   		if (MODEDEBUG==true){
+							sprintf(messageBuffer,"R:%d",RetryCounter);
+							ShowProgressMessage(messageBuffer, 0, 0);
+						}
+		     
+				}; // else
 		};
 		        		 
 		
 		// is connected, send the buffer
 		int isErrorSending = false;
-		if (isConnected && toSendCommandsNb !=0 )
-		{
-			ShowProgressMessage("try to send tcp", 0, 0);
-			int resTCP;
-			
-		    for	(int i=0; i< toSendCommandsNb; i++)
-			{
-				sprintf(messageBuffer,"TCP SEND Nb %d/%d",i+1,toSendCommandsNb);
-				ShowProgressMessage(messageBuffer, 0, 0);
-				sleep(500);
-				resTCP = TCPSEND(ipAddress,port,toSendCommands[i]);
-				if(resTCP==true){
-					ShowProgressMessage("TCP SEND OK", 0, 0); sleep(500);
-					//isErrorSending = false;
-				}else{
-					ShowProgressMessage("TCP SEND NOT OK", 0, 0); sleep(500);
-					
-					isErrorSending = true;
-					
-					// todo move array if not first element
-					if (i!=0)
-					{   int jdest=0; 
-                        for (int jsrc=i; jsrc < toSendCommandsNb ; jsrc++)
-						{ 
-							sprintf(messageBuffer,"Copy Nb %d to Nb %d",jsrc,jdest);
-							ShowProgressMessage(messageBuffer, 0, 0);
-
-							strcpy(toSendCommands[jdest] , toSendCommands[jsrc]);
-							jdest++;
-						};
-					
-					    toSendCommandsNb=jdest;
-					};					
-					break;		
-				}
-				sleep(500);				
+		// Decrease Server Retry until 0
+		if (ServerFailedRetryCounter>0) {ServerFailedRetryCounter--;} else { ServerFailedRetryCounter=0; };
+		
+		// if need to send BUFFER and not pending a retry
+		if (isConnected && toSendCommandsNb !=0 && ServerFailedRetryCounter <=0 )
+		{   ShowProgressMessage("Check if 3G enabled before Sending", 0, 0);
+			   
+			// Just check before sending
+			if (CheckConnection3G(outPppStatus)==true) {
+				   isConnected=1;
+			} else {
+				   isConnected=0;
+				   isErrorSending=true;	   
 			};
 			
+			// If connection, try to send
+			if (isErrorSending==false)
+			{
+				
+				ShowProgressMessage("try to send tcp", 0, 0);
+				int resTCP;
+			
+				for	(int i=0; i< toSendCommandsNb; i++)
+				{
+					sprintf(messageBuffer,"TCP SEND Nb %d/%d",i+1,toSendCommandsNb);
+					ShowProgressMessage(messageBuffer, 0, 0);
+					sleep(50);
+					resTCP = TCPSEND(ipAddress,port,toSendCommands[i]);
+					if(resTCP==true){
+						ShowProgressMessage("TCP SEND OK", 0, 0); sleep(50);
+						isErrorSending = false;
+					}else{
+						ShowProgressMessage("TCP SEND NOT OK", 0, 0); sleep(50);
+						isErrorSending = true;
+					
+						// todo move array if not first element
+						if (i!=0)
+						{   int jdest=0; 
+							for (int jsrc=i; jsrc < toSendCommandsNb ; jsrc++)
+							{ 
+								sprintf(messageBuffer,"Copy Nb %d to Nb %d",jsrc,jdest);
+								ShowProgressMessage(messageBuffer, 0, 0);
+
+								strcpy(toSendCommands[jdest] , toSendCommands[jsrc]);
+								jdest++;
+							};
+					
+							toSendCommandsNb=jdest;
+						};					
+						break;		
+					}; //if restcp
+					//sleep(50);				
+				}; // for			
+			}; // isError Sending		    	
 			// if all went well
 				//sprintf(messageBuffer,"End Sending error = %d",isErrorSending);
 				//ShowProgressMessage(messageBuffer, 0, 0);sleep(500);
@@ -1227,32 +1360,40 @@ int main(void)
 						
 					TCPSEND(ipAddress,port,messageBuffer);
 					
-					read_config(periodHB);// Read new Heartbeat period
+					// READ CONFIG FILE - HEARTBEAT
+					startHB = ini_getint(CONFIG_FILENAME, "configurations", "time", 0);
+					periodHB = ini_getint(CONFIG_FILENAME, "configurations", "duration", 60);
+					HBReset = (strcmp(ini_getstring(CONFIG_FILENAME, "configurations", "reset", "N"),"N")==0 ? false : true);
+										
+					//read_config(periodHB);// Read new Heartbeat period
 					//sprintf(messageBuffer,"period = %d",periodHB);
 					//lcd_draw_string(messageBuffer, font_default16, 0, 10, BLUE, BLACK);		
 					UPDATE_FLAG=0;
-				}
-			};			
-		}	
+				}; // update
+			  } // isError
+			  else
+			  {
+	              // there was an error, dont retry immediately			  
+				  ServerFailedRetryCounter = 4*60; // around 1 mins
+			  }
+			  ; // isError						
+		}; // try sending if connected and not empty
 		
-		if (MODEDEBUG==true){
-			sprintf(messageBuffer,"R:%d",RETRYCOUNTER);
-			ShowProgressMessage(messageBuffer, 0, 0); sleep(500);
+		
+		if(toSendCommandsNb!=0) 
+		{
+			ShowProgressMessage("Pending...", 0, 0);
 		}
-		
-		if((RETRYCOUNTER<=0)&&(MODEREBOOT==true)) goto RESTART;
-		sleep(500);
+		else
+		{
+			// replace 	
+			sprintf(messageBuffer,"                                                   ");	
+			ShowProgressMessage(messageBuffer, 0, 0);
+		}
+		//sleep(50);
 	} // while
 	
-	RESTART:
-	ShowProgressMessage("Turn Off RF", 0, 0);
-	pcd_rf_off();
-	if(MODESILENCE==false) beepstd();
-	h2core_soft_restart();
 	
-	//
-	//END: Exit App, return back to main application sector
-	//h2core_exit_to_main_sector();
 	
 }
 

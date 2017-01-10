@@ -5,7 +5,7 @@ define('dTRUE', 1);
 define('dFALSE', 0);
 define('DRIFT_SECONDS',60);
 define('SOCKET_RESET_INTERVAL',3600);
-define('SOCKET_READ_TIMEOUT',5);
+define('SOCKET_READ_TIMEOUT',30);
 
 ini_set('error_reporting', E_ERROR);
 ini_set('date.timezone', 'Asia/Kuala_Lumpur');
@@ -40,33 +40,16 @@ function get_config($deviceid){
 
    	$data = execSQL("SELECT UNIX_TIMESTAMP(hb_time) AS HBT,hb_duration AS HBD,'' AS SNC,IF(update_hb_eperiod='N' ,0, 1) AS HBU FROM device_configuration WHERE deviceid=? LIMIT 1;", array('i',$deviceid), false);
 
-   	$r = new stdClass();
-    if(!isset($data)){
-        $r->device = $deviceid;
-        $r->result = false;
-    }else{
-        $r->device = $deviceid;
-        if(!$data){
-			$r->result = false;
-        }else{
-        	$r->result = true;
-        	// $data[0]['SNC']=date("Y-m-d H:i:s",time());
-        	$data[0]['SNC']=time();
-        }     
-
-        $r->data=$data;
-    }
-
+    // 
+   	if(!isset($data)){ return false; };
+    
     // echo(json_encode($r).PHP_EOL);
     update_config_flag($deviceid);
     
-    if($r->result){
-    	$str = serialize($r->data[0]);
-    	// return 'CFG'.substr($str,1);
-    	return str_replace('"', '', 'CFG'.substr($str,1));
-    }
-    else return false;
-
+    // CFG:4{s:3:HBT;i:1476147600;s:3:HBD;i:1454;s:3:SNC;i:1483972940;s:3:HBU;i:1;}
+    $str='CFG:4{s:3:HBT;i:' . $data[0]["HBT"] . ';s:3:HBD;i:' . $data[0]["HBD"] .';s:3:SNC;i:'. time() . ';s:3:HBU;i:'. $data[0]["HBU"] .';}';
+    return $str;
+    
 }
 
 function update_config($deviceid,$drift){
@@ -99,12 +82,11 @@ function update_config($deviceid,$drift){
         $r->data->diff=$data[0]['dtime'];
     }
 
-    // echo(json_encode($r).PHP_EOL);
+    
+    $str = "ATT:2{s:3:UPD;i:" . $r->UPD . ";}";
+    //echo "my string is ($str)".PHP_EOL;
 
-    $arr = array('UPD' => $r->UPD);
-    $str = serialize($arr);
-    // return 'ATT'.substr($str,1);
-    return str_replace('"', '', 'ATT'.substr($str,1));
+    return $str;
 }
 
 function update_config_flag($deviceid){
@@ -347,10 +329,18 @@ while (true) {
 	
 	/* Accept incoming  requests and handle them as child processes */
 	$client =  socket_accept($sock);
+	if ($client === false) { continue; };
+
+	echo "--New connection from " . serialize($client) . PHP_EOL;
 	// Read the input  from the client – 1024000 bytes
+
 	$input =  socket_read($client, 1024000);
 
-	if(isset($input)){
+
+	
+
+
+	if($input!==false && !empty($input)){
 		echo "-----------------------------------------".PHP_EOL;
 		// Strip all white  spaces from input
 		// $output =  ereg_replace("[ \t\n\r]","",$input)."\0";
@@ -371,7 +361,11 @@ while (true) {
 		echo SERVER_ADDRESS.' >> '.$response.PHP_EOL;
 		// Display output  back to client
 		socket_write($client, $response);
+	}else{
+		echo "wrong input: ".serialize($input).PHP_EOL;
 	}
+	
+	echo "closing".PHP_EOL;
 	socket_close($client);
 	// $input = null;
 	// $output = null;
