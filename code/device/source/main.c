@@ -76,12 +76,6 @@ void ShowProgressMessage(char* message1, char* message2, unsigned char beeptone)
 #define CMD_STS "STS"
 #define CMD_ATT "ATT"
 
-void read_config(int* periodHB){
-	periodHB = ini_getint(CONFIG_FILENAME, "configurations", "duration", 60);
-	ini_free_resource();
-}
-//void write_config(){}
-
 void getDeviceID(char* deviceIdHex);
 void getDeviceID(char* deviceIdHex){
 	//unsigned char deviceID[8] ; // in binary
@@ -895,6 +889,18 @@ int main(void)
 	clear_lcd_draw_string("Please Tab Card", font_MsSerif24, 0, 0, BLACK, TRANSPARENT);
 	//beepstd();//Beep
 	
+	h2core_set_debug(H2HW_TTL);
+	h2core_set_debug_console_output(H2HW_USB);
+	
+	
+	unsigned int iReleaseTck = gettickcount() + 10000;
+	beepstd();
+	while(iReleaseTck > gettickcount())
+	{
+		h2core_task();	
+	}
+	beepstd();
+	
 	ShowProgressMessage("Turn On RF", 0, 0);
 	//Turn ON RF
 	pcd_rf_on();
@@ -1365,7 +1371,6 @@ int main(void)
 					periodHB = ini_getint(CONFIG_FILENAME, "configurations", "duration", 60);
 					HBReset = (strcmp(ini_getstring(CONFIG_FILENAME, "configurations", "reset", "N"),"N")==0 ? false : true);
 										
-					//read_config(periodHB);// Read new Heartbeat period
 					//sprintf(messageBuffer,"period = %d",periodHB);
 					//lcd_draw_string(messageBuffer, font_default16, 0, 10, BLUE, BLACK);		
 					UPDATE_FLAG=0;
