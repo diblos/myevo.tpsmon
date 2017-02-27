@@ -18,11 +18,15 @@ $EVENTS = array('900'=>'No Event','901'=>'No Power','902'=>'No Battery','903'=>'
 require('../connect.php');// LIVE HERE
 
 function log_incoming($msg,$origin){
+	$db = connect_db();
+	$query=mysqli_query($db,"INSERT INTO post_log (origin,content) VALUES ('$origin' , '$msg');");
+	$db->close();
+}
 
-		$db = connect_db();
-		$query=mysqli_query($db,"INSERT INTO post_log (origin,content) VALUES ('$origin' , '$msg');");
-		$db->close();
-
+function log_outgoing($msg,$dest){
+	$db = connect_db();
+	$query=mysqli_query($db,"INSERT INTO response_log (destination,content) VALUES ('$dest' , '$msg');");
+	$db->close();
 }
 
 function event_lookup($eventCode){
@@ -373,6 +377,7 @@ while (true) {
 				// DISPLAY OUTPUT  BACK TO CLIENT
 				sleep(1);
 				socket_write($client, $response);
+				log_outgoing($response,"$a:$p");//LOG
 			}else{
 				echo "wrong input: ".serialize($input).PHP_EOL;
 			}
